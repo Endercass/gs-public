@@ -14,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
-use hyper::header::{ACCEPT_ENCODING, CONTENT_ENCODING, TRANSFER_ENCODING};
+use hyper::header::{ACCEPT_ENCODING, CONTENT_ENCODING, SET_COOKIE, TRANSFER_ENCODING};
 use hyper::StatusCode;
 use hyper::{
     header::{CONTENT_TYPE, HOST, LOCATION},
@@ -126,6 +126,31 @@ pub async fn proxy(
                     let unproxied_location = value.to_str().unwrap();
                     let proxied_location = encode_url(&state.config, unproxied_location);
                     value = HeaderValue::from_str(&proxied_location).unwrap();
+                }
+
+                if name == SET_COOKIE {
+                    let cookies = value.to_str().unwrap();
+
+                    let cookies = cookies
+                        .split("; ")
+                        .map(|cookie| {
+                            let mut parts = cookie.splitn(2, '=');
+                            let name = parts.next().unwrap();
+                            let value = parts.next().unwrap_or("");
+                            (name, value)
+                        })
+                        .map(|(name, value)| {
+                            if name.eq_ignore_ascii_case("domain") {
+                                (name, state.config.public_host.as_str())
+                            } else {
+                                (name, value)
+                            }
+                        })
+                        .map(|(name, value)| format!("{}={}", name, value))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+
+                    value = HeaderValue::from_str(&cookies).unwrap();
                 }
 
                 (name, value)
