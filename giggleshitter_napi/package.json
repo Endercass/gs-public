@@ -1,7 +1,7 @@
 {
   "name": "giggleshitter",
   "package": "giggleshitter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "devDependencies": {
     "@napi-rs/cli": "^1.0.0"
   },

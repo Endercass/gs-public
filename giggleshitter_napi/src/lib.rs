@@ -4,8 +4,8 @@ use base32::Alphabet;
 use giggleshitter_common::state::{Config, UrlEncodingAlgorithm};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use scorched::{logf, LogData, LogImportance};
-use tokio::signal;
+use scorched::{LogExpect, LogImportance};
+use tokio::sync::oneshot::{Receiver, Sender};
 
 #[napi]
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub enum AlphabetNapi {
 }
 
 #[napi(object)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EncoderOptions {
     pub alphabet: Option<AlphabetNapi>,
     pub key: Option<Vec<u8>>,
@@ -35,7 +35,7 @@ impl Default for EncoderOptions {
 }
 
 #[napi(object)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ServeConfig {
     pub host: Option<String>,
     pub public_host: Option<String>,
@@ -120,43 +120,76 @@ impl From<ServeConfig> for Config {
 }
 
 #[napi]
-pub async fn serve(mut config: ServeConfig) -> Result<()> {
-    tracing_subscriber::fmt::init();
-    config.set_defaults();
-
-    logf!(Info, "Starting giggleshitter");
-
-    match giggleshitter_common::serve(Arc::new(config.into()), shutdown_signal()).await {
-        Ok(_) => {}
-        Err(e) => {
-            logf!(Error, "Error: {}", e);
-            return Err(napi::Error::from_reason(e.to_string()));
-        }
-    }
-
-    Ok(())
+pub struct App {
+    pub config: ServeConfig,
+    channel: (Option<Sender<()>>, Option<Receiver<()>>),
 }
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
+#[napi]
+impl App {
+    #[napi(constructor)]
+    pub fn new(config: Option<ServeConfig>) -> Result<Self> {
+        let channel = {
+            let channel = tokio::sync::oneshot::channel::<()>();
+            (Some(channel.0), Some(channel.1))
+        };
+
+        let mut config = config.unwrap_or_default();
+
+        config.set_defaults();
+
+        Ok(Self { config, channel })
+    }
+
+    #[napi]
+    /// Close the server
+    /// # Safety
+    /// This function is marked as unsafe because of a limitation in the napi crate.
+    pub async unsafe fn close(&mut self) -> Result<()> {
+        match self.channel.0.take() {
+            Some(rx) => {
+                let _ = rx.send(());
+            }
+            None => {
+                return Err(Error::new(
+                    Status::GenericFailure,
+                    "Server is already closed",
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    #[napi]
+    /// Start the server
+    /// # Safety
+    /// This function is marked as unsafe because of a limitation in the napi crate.
+    pub async unsafe fn serve(&mut self) -> Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let config = self.config.clone();
+
+        let rx = match self.channel.1.take() {
+            Some(rx) => rx,
+            None => {
+                return Err(Error::new(
+                    Status::GenericFailure,
+                    "Server is already running",
+                ));
+            }
+        };
+
+        let server_handle = tokio::spawn(async move {
+            giggleshitter_common::serve(Arc::new(config.into()), async {
+                rx.await.ok();
+            })
             .await
-            .expect("failed to install Ctrl+C handler");
-    };
+            .log_expect(LogImportance::Error, "Failed to start server")
+        });
 
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
+        let _ = server_handle.await;
 
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        Ok(())
     }
 }
