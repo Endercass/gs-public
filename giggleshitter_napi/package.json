@@ -1,13 +1,16 @@
 {
-    "package": "awesome-package",
-    "devDependencies": {
-      "@napi-rs/cli": "^1.0.0"
-    },
-    "napi": {
-      "name": "giggleshitter_napi"
-    },
-    "scripts": {
-      "build": "napi build --release",
-      "build:debug": "napi build"
-    }
+  "name": "giggleshitter",
+  "package": "giggleshitter",
+  "version": "0.1.0",
+  "devDependencies": {
+    "@napi-rs/cli": "^1.0.0"
+  },
+  "napi": {
+    "name": "giggleshitter_napi"
+  },
+  "main": "./giggleshitter_napi.node",
+  "scripts": {
+    "build": "napi build --release",
+    "build:debug": "napi build"
   }
+}
