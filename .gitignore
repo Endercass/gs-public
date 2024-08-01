@@ -2,3 +2,6 @@
 /logs
 /perf.data
 /perf.data.old
+/giggleshitter_napi/node_modules
+/giggleshitter_napi/package-lock.json
+*.node

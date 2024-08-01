@@ -1,3 +1,5 @@
+use core::fmt;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -21,6 +23,12 @@ impl IntoResponse for AppError {
             })),
         )
             .into_response()
+    }
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

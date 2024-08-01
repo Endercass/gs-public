@@ -1,3 +1,3 @@
 [workspace]
-members = ["giggleshitter_common", "giggleshitter_server"]
+members = ["giggleshitter_common", "giggleshitter_server", "giggleshitter_napi"]
 resolver = "2"

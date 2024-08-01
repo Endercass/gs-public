@@ -1,0 +1,13 @@
+{
+    "package": "awesome-package",
+    "devDependencies": {
+      "@napi-rs/cli": "^1.0.0"
+    },
+    "napi": {
+      "name": "giggleshitter_napi"
+    },
+    "scripts": {
+      "build": "napi build --release",
+      "build:debug": "napi build"
+    }
+  }
