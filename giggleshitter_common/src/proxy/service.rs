@@ -1,7 +1,8 @@
 use std::{sync::Arc, usize};
 
-use crate::rewriting::rewriter::Rewriter;
-use crate::{error::Result, proxy::util::encode_url};
+use crate::{
+    error::Result, proxy::util::encode_url, rewriting::rewriter::Rewriter, state::ProxyState,
+};
 use axum::{
     body::{to_bytes, Body},
     debug_handler,
@@ -21,8 +22,6 @@ use hyper::{
 };
 use reqwest_websocket::RequestBuilderExt;
 use scorched::{logf, LogData, LogImportance};
-
-use crate::ProxyState;
 
 use super::util::{proxied_origin, Scheme};
 

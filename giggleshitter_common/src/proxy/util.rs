@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{Config, UrlEncodingAlgorithm};
+use crate::state::{Config, UrlEncodingAlgorithm};
 use anyhow::Result;
 use hyper::Uri;
 use thiserror::Error;

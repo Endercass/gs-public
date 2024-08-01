@@ -1,0 +1,12 @@
+[package]
+name = "giggleshitter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing-subscriber = "0.3.18"
+tokio = { version = "1.39.2", features = ["full"] }
+giggleshitter_common = { path = "../giggleshitter_common" }
+scorched = "0.5.3"
+confy = { version = "0.6.1", default-features = false, features = ["ron_conf"] }
+axum = { version = "0.7.5", features = ["macros", "ws"] }

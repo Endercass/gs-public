@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use lol_html::{element, html_content::ContentType, Settings};
 
-use crate::{proxy::util::encode_url, rewriting::rewriter::Rewriter, Result, SharedState};
+use crate::{
+    error::Result, proxy::util::encode_url, rewriting::rewriter::Rewriter, state::SharedState,
+};
 
 pub struct HtmlRewriter {
     state: Arc<SharedState>,
