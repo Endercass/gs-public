@@ -25,7 +25,10 @@ impl Rewriter for HtmlRewriter {
                     // Inject console.log script in head
                     element!("head", |el| {
                         el.append(
-                            "<script>console.log('Hello from the proxy!')</script>",
+                            &format!(
+                                r#"<script type="text/javascript">{}</script>"#,
+                                include_str!("../patches.js")
+                            ),
                             ContentType::Html,
                         );
 
