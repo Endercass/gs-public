@@ -132,11 +132,24 @@ fn parse_origin(origin: &str) -> Result<Origin> {
 }
 
 pub fn encode_url(config: &Config, url: &str) -> String {
-    let uri = Uri::from_str(url).unwrap();
+    if !url.contains("://") {
+        return url.to_string();
+    }
 
-    let scheme = uri.scheme().unwrap().to_string();
+    let uri = match Uri::from_str(url) {
+        Ok(uri) => uri,
+        Err(_) => return url.to_string(),
+    };
 
-    let auth = uri.authority().unwrap();
+    let scheme = match uri.scheme_str() {
+        Some(str) => str,
+        None => return url.to_string(),
+    };
+
+    let auth = match uri.authority() {
+        Some(auth) => auth,
+        None => return url.to_string(),
+    };
 
     let port = match auth.port_u16() {
         Some(p) => format!(":{}", p),

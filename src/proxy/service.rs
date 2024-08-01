@@ -1,5 +1,6 @@
 use std::{sync::Arc, usize};
 
+use crate::rewriting::rewriter::Rewriter;
 use crate::{error::Result, proxy::util::encode_url};
 use axum::{
     body::{to_bytes, Body},
@@ -12,11 +13,14 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use futures_util::{SinkExt, StreamExt};
+use hyper::header::{ACCEPT_ENCODING, CONTENT_ENCODING, TRANSFER_ENCODING};
+use hyper::StatusCode;
 use hyper::{
-    header::{HOST, LOCATION},
+    header::{CONTENT_TYPE, HOST, LOCATION},
     HeaderMap,
 };
 use reqwest_websocket::RequestBuilderExt;
+use scorched::{logf, LogData, LogImportance};
 
 use crate::ProxyState;
 
@@ -61,6 +65,10 @@ pub async fn proxy(
     parts
         .headers
         .insert(HOST, HeaderValue::from_str(origin.host())?);
+
+    parts
+        .headers
+        .insert(ACCEPT_ENCODING, "gzip, br, deflate, zstd".parse().unwrap());
 
     parts
         .headers
@@ -127,11 +135,40 @@ pub async fn proxy(
 
     *response_builder.headers_mut().unwrap() = headers;
 
-    Ok(response_builder
-        .body(Body::from_stream(res.bytes_stream()))
-        // This unwrap is fine because the body is empty here
-        .unwrap()
-        .into_response())
+    let body = if let Some(content_type) = res.headers().get(CONTENT_TYPE) {
+        if content_type.to_str().unwrap_or("").contains("text/html") {
+            let rewriter = state.html_rewriter.clone();
+
+            let headers = response_builder.headers_mut().unwrap();
+
+            headers.remove(CONTENT_ENCODING);
+            headers.remove(TRANSFER_ENCODING);
+
+            let mut body = res.bytes().await?.to_vec();
+
+            body = match rewriter.rewrite(body) {
+                Ok(body) => body,
+                Err(e) => {
+                    logf!(Error, "Error rewriting HTML: {:?}", e);
+                    b"<html><body><h1>Error rewriting HTML</h1></body></html>".to_vec()
+                }
+            };
+
+            Body::from(body)
+        } else {
+            Body::from_stream(res.bytes_stream())
+        }
+    } else {
+        Body::from_stream(res.bytes_stream())
+    };
+
+    match response_builder.body(body) {
+        Ok(response) => Ok(response.into_response()),
+        Err(e) => {
+            logf!(Error, "Error building response: {:?}", e);
+            Ok((StatusCode::INTERNAL_SERVER_ERROR, "Error building response").into_response())
+        }
+    }
 }
 
 async fn proxy_ws(client: reqwest::Client, socket: WebSocket, dest: String) {

@@ -1,6 +1,7 @@
 pub mod api;
 pub mod error;
 pub mod proxy;
+pub mod rewriting;
 
 use std::{net::SocketAddr, sync::Arc, usize};
 
@@ -12,6 +13,7 @@ use axum::{
 use base32::Alphabet;
 use error::Result;
 use reqwest::redirect::Policy;
+use rewriting::html::html_rewriter;
 use scorched::{logf, LogData, LogImportance};
 use serde::{Deserialize, Serialize};
 use tower::ServiceExt;
@@ -93,11 +95,12 @@ pub struct APIState {
 pub struct ProxyState {
     config: Arc<Config>,
     client: reqwest::Client,
+    html_rewriter: Arc<html_rewriter::HtmlRewriter>,
 }
 
 #[derive(Clone)]
 /// The shared state that is passed to the hostname router
-struct SharedState {
+pub struct SharedState {
     config: Arc<Config>,
 }
 
@@ -113,13 +116,24 @@ async fn main() -> Result<()> {
 
     let config: Arc<Config> = Arc::new(confy::load("weirdproxy", None)?);
 
+    let sharedstate = SharedState {
+        config: config.clone(),
+    };
+
     let client = reqwest::Client::builder()
         .redirect(Policy::none())
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
+        .zstd(true)
         .build()?;
 
     let proxystate = ProxyState {
         config: config.clone(),
         client,
+        html_rewriter: Arc::new(html_rewriter::HtmlRewriter::new(Arc::new(
+            sharedstate.clone(),
+        ))),
     };
 
     let proxyrouter = proxy::service::proxy.with_state(Arc::new(proxystate).clone());
@@ -129,10 +143,6 @@ async fn main() -> Result<()> {
     };
 
     let apirouter = api::service::service(Arc::new(apistate));
-
-    let sharedstate = SharedState {
-        config: config.clone(),
-    };
 
     let app = any(
         |State(state): State<SharedState>, Host(host): Host, req: Request| async move {
