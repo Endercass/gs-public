@@ -158,7 +158,10 @@ pub fn encode_url(config: &Config, url: &str) -> String {
 
     let origin = format!("{}://{}{}", scheme, auth.host(), port);
 
-    let path = uri.path();
+    let path = match uri.path_and_query() {
+        Some(pq) => pq.as_str(),
+        None => "/",
+    };
 
     return match config.url_encoding_algorithm.clone() {
         UrlEncodingAlgorithm::Base32(alphabet) => {
